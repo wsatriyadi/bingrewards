@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.3.0](https://github.com/wsatriyadi/bingrewards/compare/v3.2.3...v3.3.0) (2026-08-29)
+
+
+### Features
+
+* add login-helper.sh for interactive MS account login via noVNC ([1acffe4](https://github.com/wsatriyadi/bingrewards/commit/1acffe49d6d39abd525ba3d7ac79fea6a53304f5))
+* add Microsoft Rewards points dashboard ([8d55a41](https://github.com/wsatriyadi/bingrewards/commit/8d55a411a10b5a706b862c9c8a22aa10072a3160))
+
+
+### Documentation
+
+* document points dashboard and headless login helper ([acf8161](https://github.com/wsatriyadi/bingrewards/commit/acf816180ad60809cac9a7dc78787a31ca14723e))
+
 ## [3.2.3](https://github.com/wsatriyadi/bingrewards/compare/v3.2.2...v3.2.3) (2026-08-29)
 
 
