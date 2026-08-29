@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.2](https://github.com/wsatriyadi/bingrewards/compare/v3.2.1...v3.2.2) (2026-08-29)
+
+
+### Bug Fixes
+
+* specify exception types instead of blind catches (BLE001) ([4fe33df](https://github.com/wsatriyadi/bingrewards/commit/4fe33df4b5826474438822edf025e45f75914a8a))
+
 ## [3.2.1](https://github.com/wsatriyadi/bingrewards/compare/v3.3.0...v3.2.1) (2026-08-29)
 
 
