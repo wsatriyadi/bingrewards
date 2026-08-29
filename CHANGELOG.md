@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.3](https://github.com/wsatriyadi/bingrewards/compare/v3.2.2...v3.2.3) (2026-08-29)
+
+
+### Bug Fixes
+
+* suppress Origin header in CDP WebSocket handshake (Chrome 403) ([e1154be](https://github.com/wsatriyadi/bingrewards/commit/e1154be851c4bec597e2dce0a75ae10a191d5c04))
+
 ## [3.2.2](https://github.com/wsatriyadi/bingrewards/compare/v3.2.1...v3.2.2) (2026-08-29)
 
 
