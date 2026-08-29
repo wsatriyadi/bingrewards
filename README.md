@@ -113,7 +113,7 @@ The UI allows you to:
 - Toggle desktop/mobile/headless/dryrun modes
 - Adjust search counts per run
 - Monitor live logs and run status
-- Start/stop runs without touching the CLI
+- View the Microsoft Rewards points dashboard (balance, search progress per account)
 
 ### Multi-Account Setup
 
@@ -140,6 +140,32 @@ Edit `config.json` (`~/.config/bing-rewards/config.json` on Linux, `%APPDATA%\bi
 ```
 
 Each account runs in its own isolated Chrome `user-data-dir`. Log into each profile's Bing once manually, then automated runs will reuse those sessions.
+
+### Points Dashboard
+
+The web UI shows each account's Microsoft Rewards points (available balance, lifetime
+points, and PC/mobile search progress). Data is fetched via a short-lived headless
+Chrome on each account's profile from `bing.com/rewardsapp/getuserdata`.
+
+- **Refresh Points** button fetches live data (one browser launch per account, ~5s each)
+- After each run completes, points are fetched automatically
+- `GET /api/points` returns the cached data, `POST /api/points/refresh` triggers a fresh fetch
+
+Each profile must be logged into its Microsoft account; an unlogged profile shows an
+error entry instead of crashing the dashboard.
+
+### Headless-server login (`scripts/login-helper.sh`)
+
+On a headless server, log into each profile once via noVNC in your local browser:
+
+```bash
+./scripts/login-helper.sh account1
+# open http://<server>:6080/vnc.html in your PC browser, log into login.live.com,
+# then press Enter in the terminal to tear down the VNC session
+```
+
+Requires `xvfb`, `x11vnc`, and `novnc` packages on the server. The profile is created
+at `~/bingrewards/chrome-<name>` — use that path as the account's `user_data_dir`.
 
 ## Options
 
