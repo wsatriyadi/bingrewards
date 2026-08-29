@@ -128,9 +128,7 @@ class CDPDriver:
     def _connect(self, ws_url: str):
         """Connect to a page target's WebSocket."""
         try:
-            self.ws = websocket.create_connection(
-                ws_url, timeout=10, suppress_origin=True
-            )
+            self.ws = websocket.create_connection(ws_url, timeout=10, suppress_origin=True)
             self.tab_id = ws_url.rsplit('/', 1)[-1]
             print('CDP WebSocket connected')
         except (OSError, websocket.WebSocketException) as e:
