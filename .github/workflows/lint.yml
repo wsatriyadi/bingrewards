@@ -15,12 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     # runs `check` using with github output format automatically
     - name: Run ruff linting
       uses: astral-sh/ruff-action@v3
-
+      with:
+        version: 0.15.12
+        # keep in sync with dev dependency group in pyproject.toml
     # also check formatting
     - name: Run ruff format
       run: ruff format --check --diff
