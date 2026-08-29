@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 CDP_CONNECT_TIMEOUT = 30  # seconds to wait for the DevTools HTTP endpoint
 
 
-
 class CDPDriver:
     """Chrome DevTools Protocol driver for headless/headed browser control."""
 
@@ -150,7 +149,7 @@ class CDPDriver:
             response = json.loads(self.ws.recv())
             if response.get('id') == self.msg_id:
                 if 'error' in response:
-                    raise RuntimeError(f"CDP error: {response['error']}")
+                    raise RuntimeError(f'CDP error: {response["error"]}')
                 return response.get('result', {})
 
     def navigate(self, url: str):

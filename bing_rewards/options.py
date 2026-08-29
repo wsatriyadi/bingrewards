@@ -64,7 +64,6 @@ class Account:
     mobile_count: int | None = None
 
 
-
 @dataclasses.dataclass()
 class Config:
     """Default settings for file config and types."""
@@ -252,7 +251,7 @@ def _validate_config_dict(config: dict) -> dict:
     unknown = [k for k in config if k not in valid_names]
     if unknown:
         print(
-            f"Config warning: ignoring unknown option{'s' if len(unknown) > 1 else ''} "
+            f'Config warning: ignoring unknown option{"s" if len(unknown) > 1 else ""} '
             f'{", ".join(sorted(unknown))!r}. Valid options: {", ".join(sorted(valid_names))}'
         )
     config = {k: v for k, v in config.items() if k in valid_names}
