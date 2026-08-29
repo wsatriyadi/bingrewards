@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bing-rewards — Web UI</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --panel: #161b22;
+    --border: #2b313b;
+    --text: #d8dee9;
+    --muted: #7d8590;
+    --accent: #4f8cff;
+    --ok: #3fb96d;
+    --err: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 22px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  h1 .v { color: var(--muted); font-weight: 400; }
+  .status { margin-left: auto; font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); }
+  .status.running { color: var(--ok); border-color: var(--ok); }
+  .status.error   { color: var(--err); border-color: var(--err); }
+  main { padding: 22px; max-width: 1000px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+  .card h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], input[type=number] { width: 100%; padding: 7px 9px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .check { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; cursor: pointer; }
+  button { padding: 9px; border-radius: 6px; border: 1px solid var(--border); background: var(--accent); color: #fff; font-size: 14px; cursor: pointer; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.danger { background: var(--err); width: 100%; margin-top: 8px; }
+  #btn-start { width: 100%; margin-top: 14px; }
+  #log { height: 300px; overflow-y: auto; padding: 12px; background: #0b0e12; border: 1px solid var(--border); border-radius: 8px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+  .acc { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .acc input { flex: 1; min-width: 90px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 12px; }
+  .acc button { padding: 4px 10px; font-size: 11px; background: transparent; color: var(--err); border-color: var(--err); }
+  #add-acc-btn { background: transparent; border-color: var(--accent); color: var(--accent); }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>bing-rewards <span class="v">web UI</span></h1>
+  <span id="status" class="status">idle</span>
+</header>
+<main>
+  <div class="grid">
+    <div>
+      <section class="card">
+        <h2>Kontrol Run</h2>
+        <label class="check"><input type="checkbox" id="desktop" checked> Desktop (UA Edge desktop)</label>
+        <label class="check"><input type="checkbox" id="mobile" checked> Mobile (UA Edge mobile)</label>
+        <label class="check"><input type="checkbox" id="headless"> Headless (tanpa window)</label>
+        <label class="check"><input type="checkbox" id="dryrun"> Dry run (tanpa browser)</label>
+        <label for="desktop-count">Jumlah pencarian desktop</label>
+        <input type="number" id="desktop-count" value="33" min="0">
+        <label for="mobile-count">Jumlah pencarian mobile</label>
+        <input type="number" id="mobile-count" value="23" min="0">
+        <button id="btn-start">Mulai Run</button>
+        <button id="btn-stop" class="danger" disabled>Stop</button>
+      </section>
+      <section class="card">
+        <h2>Akun (multi-account)</h2>
+        <div id="accounts"></div>
+        <button id="add-acc-btn">+ Tambah Akun</button>
+        <p class="hint">Tiap akun = user-data-dir Chrome terpisah. Login akun MS di browser tersebut sekali, lalu jalankan run.</p>
+      </section>
+    </div>
+    <section class="card">
+      <h2>Log</h2>
+      <div id="log">Menunggu run pertama…</div>
+      <p class="hint">Log real-time via polling <code>/api/log</code>. Default delay antar pencarian 6 detik.</p>
+    </section>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id)
+let logCursor = 0
+let accList = []
+let running = false
+
+function renderAccounts() {
+  const box = $('accounts')
+  box.innerHTML = ''
+  accList.forEach((acc, i) => {
+    const row = document.createElement('div')
+    row.className = 'acc'
+    for (const field of ['name', 'user_data_dir', 'profile_dir']) {
+      const input = document.createElement('input')
+      input.type = 'text'
+      input.placeholder = { name: 'nama', user_data_dir: 'user-data-dir (opsional)', profile_dir: 'profile (Default)' }[field]
+      input.value = acc[field] || ''
+      input.oninput = () => { accList[i][field] = input.value }
+      row.appendChild(input)
+    }
+    const del = document.createElement('button')
+    del.textContent = 'hapus'
+    del.onclick = () => { accList.splice(i, 1); renderAccounts() }
+    row.appendChild(del)
+    box.appendChild(row)
+  })
+}
+
+$('add-acc-btn').onclick = () => {
+  accList.push({ name: 'Akun ' + (accList.length + 1), user_data_dir: '', profile_dir: 'Default' })
+  renderAccounts()
+}
+
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/config').then(r => r.json())
+    $('desktop-count').value = r.desktop_count ?? 33
+    $('mobile-count').value = r.mobile_count ?? 23
+    accList = (r.accounts && r.accounts.length) ? r.accounts.map(a => ({...a})) : []
+    renderAccounts()
+  } catch (e) {
+    console.error('loadConfig failed', e)
+  }
+}
+
+$('btn-start').onclick = async () => {
+  if (running) return
+  const body = {
+    desktop: $('desktop').checked,
+    mobile: $('mobile').checked,
+    headless: $('headless').checked,
+    dryrun: $('dryrun').checked,
+    desktop_count: parseInt($('desktop-count').value, 10),
+    mobile_count: parseInt($('mobile-count').value, 10),
+    accounts: accList.length ? accList : null,
+  }
+  const r = await fetch('/api/run', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })
+  if (!r.ok) { alert(await r.text()); return }
+  logCursor = 0
+  $('log').textContent = ''
+  running = true
+  updateButtons()
+}
+
+$('btn-stop').onclick = () => fetch('/api/stop', { method: 'POST' })
+
+function updateButtons() {
+  $('btn-start').disabled = running
+  $('btn-stop').disabled = !running
+}
+
+async function poll() {
+  try {
+    const st = await fetch('/api/status').then(r => r.json())
+    $('status').textContent = st.status
+    $('status').className = 'status ' + st.status
+    if (st.log_len < logCursor) logCursor = 0  // log reset by new run
+    if (st.log_len > logCursor) {
+      const lg = await fetch('/api/log?offset=' + logCursor).then(r => r.json())
+      const box = $('log')
+      for (const line of lg.lines) {
+        const div = document.createElement('div')
+        div.textContent = line
+        box.appendChild(div)
+      }
+      logCursor = lg.cursor
+      box.scrollTop = box.scrollHeight
+    }
+    running = st.status === 'running'
+    updateButtons()
+  } catch (e) { /* server offline; retry next tick */ }
+}
+
+loadConfig()
+setInterval(poll, 1000)
+</script>
+</body>
+</html>

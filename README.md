@@ -8,7 +8,7 @@
 <img alt="PyPI - License" src="https://img.shields.io/pypi/l/bing-rewards?style=flat-square&label=License&color=blueviolet">
 </div>
 
-### A CLI app to perform Bing searches
+### A CLI app and web UI to perform Bing searches
 Please submit an issue or pull-request if you have an idea for a feature
 
 - [Features](#features)
@@ -22,12 +22,14 @@ Please submit an issue or pull-request if you have an idea for a feature
 
 ## Features
 
-* Enter random search queries into your browser *a-la* Auto Hotkey.
-* Use a mobile user agent to get mobile points (`--mobile`)
-* Configurable number of searches with `--count=`
-* Install as self-contained python application with minimal dependencies (`pynput`)
-* Fine tune delay and set browser executable with [config](#configuration) at `$XDG_CONFIG_HOME` or `%APPDATA%` on Windows
-* Not intended as an automated or headless service. Simply assists with what would regularly be a manual task.
+* Automated Bing searches via Chrome DevTools Protocol (CDP) — no keyboard hijacking
+* **Web UI** for easy configuration and monitoring (`uvicorn bing_rewards.webapp:app`)
+* **Multi-account support** — run searches across multiple Microsoft accounts sequentially
+* **Headless mode** — run without visible browser windows (`--headless`)
+* **Cross-platform** — works on Windows, Linux (including Wayland), and macOS
+* Mobile and desktop search modes with configurable counts
+* Fine-tune delays and browser path via [config file](#config)
+* Not intended as a fully automated service — assists with manual tasks
 
 
 > [!Important]
@@ -57,89 +59,136 @@ Clone the repo and install locally. See: [Developing](#development--contribution
 
 ## Dependencies
 
-- At least Python 3.10
+- Python 3.10 or newer
 
-- [pynput](https://github.com/moses-palmer/pynput) (installed with package). Used to control keypresses and type Bing search URLS.
-  > [!Warning]
-  >  Bing-Rewards *will* take control away from the keyboard while running. **Pynput** performs key presses. i.e., it does not operate headless or in the background.
+- A Chromium-based browser (`chrome`, `chromium`, `brave`, etc.) discoverable on PATH, or specify with `--exe`
+  - [Download Google Chrome](https://www.google.com/intl/en/chrome/)
+  - See `"browser_path"` in [config](#config) for persistent override
 
-- `chrome` must be discoverable on the system PATH. [Download Google Chrome](https://www.google.com/intl/en/chrome/).
-  If your Chromium based browser has a different name use the `--exe` flag with an absolute path to the browser executable to use (e.g. `--exe=$(which brave-browser)`).
-  See also: `"browser-path"` option in the [config](#configuration) file.
+- **FastAPI** and **uvicorn** (installed with package) for the optional web UI
 
-- To earn points from searching, you *must* also have logged into [bing.com](https://www.bing.com) with your Microsoft account at least once, to save cookies.
+- **websocket-client** (installed with package) for CDP communication
 
+- You must log into [bing.com](https://www.bing.com) with your Microsoft account at least once in each browser profile to save cookies
 ## Usage
 
-> [!Tip]
-> Press <kbd>ESC</kbd> to exit early and regain control
+### CLI
 
-Complete mobile and desktop daily points
+Complete mobile and desktop daily points (default: 33 desktop + 23 mobile):
 
-`$ bing-rewards`
+```bash
+bing-rewards
+```
 
-Run 10 searches with mobile user-agent in a new window
+Run 10 mobile searches only:
 
-`$ bing-rewards -m -c10`
+```bash
+bing-rewards -m -c10
+```
 
-`$ bing-rewards --mobile --count=10`
+Headless mode (no visible window):
 
-Complete mobile and desktop daily points using specified Chrome profile "Profile 1"
+```bash
+bing-rewards --headless
+```
 
-`$ bing-rewards --profile "Profile 1"`
+Dry run (verify config without launching browser):
 
-Run searches sequentially across multiple Chrome profiles
+```bash
+bing-rewards --dryrun
+```
 
-`$ bing-rewards --profile "Default" "Profile 1" "Profile 2"`
+### Web UI
 
-Launches Chrome as a subprocess with special flags. Tested on Windows 10 and Linux (Ubuntu + Arch), however it should work on Mac OS as well.
+Launch the web interface:
 
-> [!Warning]
-> No other instance of chrome.exe can be open when the script runs. Chrome prevents different user agents in each window. The script will run, but Chrome will not appear as Edge
+```bash
+uvicorn bing_rewards.webapp:app --port 8000
+```
 
+Then open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
+
+The UI allows you to:
+- Configure multi-account runs with separate Chrome profiles
+- Toggle desktop/mobile/headless/dryrun modes
+- Adjust search counts per run
+- Monitor live logs and run status
+- Start/stop runs without touching the CLI
+
+### Multi-Account Setup
+
+Edit `config.json` (`~/.config/bing-rewards/config.json` on Linux, `%APPDATA%\bing-rewards\config.json` on Windows):
+
+```json
+{
+  "accounts": [
+    {
+      "name": "Account1",
+      "user_data_dir": "/path/to/chrome-profile-1",
+      "profile_dir": "Default"
+    },
+    {
+      "name": "Account2",
+      "user_data_dir": "/path/to/chrome-profile-2",
+      "profile_dir": "Default"
+    }
+  ],
+  "desktop_count": 33,
+  "mobile_count": 23,
+  "headless": false
+}
+```
+
+Each account runs in its own isolated Chrome `user-data-dir`. Log into each profile's Bing once manually, then automated runs will reuse those sessions.
 
 ## Options
 
 Running with no options will complete mobile and desktop daily search quota.
 The following options are available to change the default behavior.
 Options supplied at execution time override any config.
-| Flag                       | Option                                                                                                 |
-| -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `-h`, `--help`             | Display help and exit                                                                                  |
-| `-c`, `--count=N`          | Override the number of searches to complete                                                            |
-| `-b`, `--bing`             | Use this flag if Bing is already your default search engine. Bypasses constructing a bing.com URL      |
-| `-d`, `--desktop`          | Only use desktop user agent                                                                            |
-| `-m`, `--mobile`           | Only use a mobile user agent                                                                           |
-| `-n`, `--dryrun`           | Do everything but type the search query                                                                |
-| `--exe PATH`               | The full path of the Chrome compatible browser executable (Brave and Chrome tested)                    |
-| `--load-delay SEC`         | Override the time given to Chrome to load in seconds                                                   |
-| `--search-delay MIN[,MAX]` | Set the time between individual searches, in seconds. Can specify a range to get random delays         |
-| `--open-rewards`           | Open the rewards page at the end of the run                                                            |
-| `--nowindow`               | Don't open a new Chrome window, just type the keys                                                     |
-| `-X`, `--no-exit`          | Do not close the browser after completing a search                                                     |
-| `--profile`                | Run searches using specified Chrome profile(s). Multiple profiles can be specified to run sequentially |
-| `--ime`                    | Triggers Windows IME to switch to English input by pressing "shift"                                    |
-
+| Flag                       | Option                                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `-h`, `--help`             | Display help and exit                                                                           |
+| `-c`, `--count=N`          | Override the number of searches to complete                                                     |
+| `-b`, `--bing`             | Use this flag if Bing is already your default search engine                                     |
+| `-d`, `--desktop`          | Only perform desktop searches                                                                   |
+| `-m`, `--mobile`           | Only perform mobile searches                                                                    |
+| `-n`, `--dryrun`           | Validate configuration without launching browser                                                |
+| `--exe PATH`               | Full path to Chrome-compatible browser (Brave, Chromium, Chrome tested)                         |
+| `--load-delay SEC`         | Time given to Chrome to load (seconds)                                                          |
+| `--search-delay MIN[,MAX]` | Time between searches (seconds); single value or range for random delays                        |
+| `--open-rewards`           | Open the Microsoft Rewards dashboard after completing searches                                  |
+| `--headless`               | Run browser in headless mode (no visible window)                                                |
+| `--ime`                    | (Windows) Press Shift to switch IME to English input before typing                              |
 ## Config
-A config file is also generated in $XDG_CONFIG_HOME or %APPDATA% on Windows
-where precise delay modifications can be made. If updates make changes to the default configs, you will have to remove and regenerate the file.
 
-Example config `~/.config/bing-rewards/config.json`
+A config file is generated in `$XDG_CONFIG_HOME/bing-rewards/` (Linux/macOS) or `%APPDATA%\bing-rewards\` (Windows) on first run.
+
+Example `~/.config/bing-rewards/config.json`:
+
 ```json
 {
-    "desktop_count": 30,
-    "mobile_count": 20,
-    "load_delay": 1.5,
-    "search_delay": 2,
-    "search_url": "https://www.bing.com/search?FORM=CHROMN&q=",
-    "desktop_agent": "Mozilla/5.0 ... <snip>",
-    "mobile_agent": "Mozilla/5.0 (Windows Phone 10.0; Android 6.0.1) ... <snip>",
-    "browser_path": "C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"
+  "desktop_count": 33,
+  "mobile_count": 23,
+  "load_delay": 1.5,
+  "search_delay": 6.0,
+  "search_url": "https://www.bing.com/search?form=QBRE&q=",
+  "desktop_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edge/126.0.0.0",
+  "mobile_agent": "Mozilla/5.0 (Linux; Android 14; Pixel 6 Build/AP2A.240605.024) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36 Edge/121.0.2277.138",
+  "browser_path": "chrome",
+  "bing": false,
+  "open_rewards": false,
+  "headless": false,
+  "ime": false,
+  "accounts": [],
+  "profile": ["Default"]
 }
 ```
-Delay timings are in seconds.
-> [!Note]
-> The format has slightly changed in version >= 3.0, so delete and regenerate accordingly.
+
+**New in this fork:**
+- `headless`: Run browsers without visible windows
+- `accounts`: Array of account configs for multi-account runs (see [Multi-Account Setup](#multi-account-setup))
+- Removed `window` and `exit` options (CDP always manages browser lifecycle cleanly)
 
 ### User agents
 

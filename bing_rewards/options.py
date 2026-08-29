@@ -54,23 +54,43 @@ DESKTOP_AGENT = (
 
 
 @dataclasses.dataclass()
+class Account:
+    """Per-account configuration for multi-account support."""
+
+    name: str
+    user_data_dir: str = ''  # Chrome user-data-dir; empty = temp
+    profile_dir: str = 'Default'  # Profile within user-data-dir
+    desktop_count: int | None = None  # Override global; None = use global
+    mobile_count: int | None = None
+
+
+
+@dataclasses.dataclass()
 class Config:
     """Default settings for file config and types."""
 
     desktop_count: int = DESKTOP_COUNT
     mobile_count: int = MOBILE_COUNT
     load_delay: float = LOAD_DELAY
-    search_delay: float | tuple[float, float] = SEARCH_DELAY
+    search_delay: float | list[float] = SEARCH_DELAY  # float or [min, max]
     search_url: str = URL
     desktop_agent: str = DESKTOP_AGENT
     mobile_agent: str = MOBILE_AGENT
     browser_path: str = 'chrome'
     bing: bool = False  # True means Bing is default search engine
     open_rewards: bool = False
-    window: bool = True
-    exit: bool = True
+    headless: bool = False  # Run in headless mode (CDP only)
     ime: bool = False
+    accounts: list[dict] = dataclasses.field(default_factory=list)  # Multi-account support
+    # Legacy single-profile support (deprecated; use accounts)
     profile: list[str] = dataclasses.field(default_factory=lambda: ['Default'])
+
+    def get_accounts(self) -> list[Account]:
+        """Return Account objects; fallback to legacy profile if accounts empty."""
+        if self.accounts:
+            return [Account(**acc) for acc in self.accounts]
+        # Legacy: convert profile list to Account objects
+        return [Account(name=p, profile_dir=p) for p in self.profile]
 
 
 def parse_args() -> Namespace:
@@ -155,15 +175,8 @@ def parse_args() -> Namespace:
         default=None,
     )
     p.add_argument(
-        '--window',
-        help='Open a new Chrome window (default: True)',
-        action=BooleanOptionalAction,
-        default=None,
-    )
-    p.add_argument(
-        '-X',
-        '--exit',
-        help='Close the browser window after searching (default: True)',
+        '--headless',
+        help='Run browsers in headless mode (no visible window)',
         action=BooleanOptionalAction,
         default=None,
     )
@@ -205,7 +218,7 @@ def valid_range(value: str) -> float | tuple[float, float]:
 def valid_file(path: str) -> Path:
     """Check that a string is a file and exists handler for the --exe= flag."""
     exe = Path(path)
-    if exe.is_file:
+    if exe.is_file() and exe.exists():
         return exe
     raise FileNotFoundError(path)
 
@@ -228,8 +241,55 @@ def config_location() -> Path:
     return config_home.joinpath('config.json')
 
 
+def _validate_config_dict(config: dict) -> dict:
+    """Validate a raw config dict against the Config dataclass fields (issue #80).
+
+    Filters unknown keys with a friendly warning and validates types,
+    reverting invalid values to their defaults with a clear message.
+    """
+    valid_fields = {f.name: f for f in dataclasses.fields(Config)}
+    valid_names = set(valid_fields)
+    unknown = [k for k in config if k not in valid_names]
+    if unknown:
+        print(
+            f"Config warning: ignoring unknown option{'s' if len(unknown) > 1 else ''} "
+            f'{", ".join(sorted(unknown))!r}. Valid options: {", ".join(sorted(valid_names))}'
+        )
+    config = {k: v for k, v in config.items() if k in valid_names}
+
+    # Type validation: field types are strings under `from __future__ import annotations`
+    # only when evaluated lazily, so compare against a manual expectation map.
+    expected_types = {
+        'desktop_count': int,
+        'mobile_count': int,
+        'load_delay': float,
+        'search_delay': (float, list),
+        'search_url': str,
+        'desktop_agent': str,
+        'mobile_agent': str,
+        'browser_path': str,
+        'bing': bool,
+        'open_rewards': bool,
+        'headless': bool,
+        'ime': bool,
+        'accounts': list,
+        'profile': list,
+    }
+    for name, expected in expected_types.items():
+        if name in config and not isinstance(config[name], expected):
+            print(
+                f'Config error: {name!r} should be of type {expected!r}, '
+                f'got {type(config[name]).__name__!r}. Reverting to default.'
+            )
+            del config[name]
+    return config
+
+
 def read_config() -> Config:
-    """Read a configuration file if it exists, otherwise write (and return) default settings."""
+    """Read a configuration file if it exists, otherwise write (and return) default settings.
+
+    Unknown keys are filtered and type mismatches revert to defaults, with friendly messages.
+    """
     config_file: Path = config_location()
 
     if not config_file.is_file():
@@ -237,20 +297,21 @@ def read_config() -> Config:
         print(f'Generating config at {config_file}')
         config_file.parent.mkdir(parents=True, exist_ok=True)
         default_options = Config()
-        with config_file.open('x') as f:
+        with config_file.open(mode='x') as f:
             json.dump(dataclasses.asdict(default_options), f, indent=2)
-        return default_options
+    else:
+        config = {}
+        with config_file.open() as f:
+            try:
+                config = json.load(f)
+            except json.decoder.JSONDecodeError as e:
+                print(e)
+                print('Config JSON format error. Reverting to default.')
+        # Validate + filter, then build Config
+        config = _validate_config_dict(config)
+        return Config(**config)
 
-    # Otherwise, try to read the config from a file
-    config = {}
-    with config_file.open() as f:
-        try:
-            config = json.load(f)
-        except json.decoder.JSONDecodeError as e:
-            print(e)
-            print('Config JSON format error. Reverting to default.')
-    # return dataclass with values from config taking priority
-    return Config(**config)
+    return default_options
 
 
 def get_options() -> Namespace:
@@ -266,9 +327,4 @@ def get_options() -> Namespace:
         if value is not None:
             merged_dict[key] = value
     result = Namespace(**merged_dict)
-
-    # Ensure all boolean options are set
-    result.no_window = not result.window
-    result.no_exit = not result.exit
-
     return result
