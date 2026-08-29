@@ -71,6 +71,7 @@ def get_status():
         'started_at': STATE.started_at,
     }
 
+
 @app.get('/api/log')
 def get_log(offset: int = 0):
     """Return log lines from `offset`; returns full lines with cursor."""
@@ -83,6 +84,7 @@ def get_log(offset: int = 0):
 
 class RunRequest(BaseModel):
     """POST /api/run request body."""
+
     desktop: bool = True
     mobile: bool = True
     dryrun: bool = False
