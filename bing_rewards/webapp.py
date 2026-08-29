@@ -136,7 +136,7 @@ def start_run(req: RunRequest):
                 STATE.log(f'Account {account.name} complete')
             STATE.status = 'idle'
             STATE.log('Run complete')
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- top-level run boundary: any failure must mark run as error
             STATE.status = 'error'
             STATE.log(f'Error: {e}')
 

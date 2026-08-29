@@ -97,7 +97,7 @@ class CDPDriver:
     def _wait_for_endpoint(self) -> str:
         """Poll the DevTools HTTP endpoint until Chrome's debugger is ready."""
         deadline = time.time() + CDP_CONNECT_TIMEOUT
-        last_error: Exception | None = None
+        last_error: OSError | ValueError | None = None
         while time.time() < deadline:
             try:
                 response = urllib.request.urlopen(
@@ -105,7 +105,7 @@ class CDPDriver:
                 )
                 json.loads(response.read().decode())
                 break
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 last_error = e
             time.sleep(0.2)
         else:
@@ -131,7 +131,7 @@ class CDPDriver:
             self.ws = websocket.create_connection(ws_url, timeout=10)
             self.tab_id = ws_url.rsplit('/', 1)[-1]
             print('CDP WebSocket connected')
-        except Exception as e:
+        except (OSError, websocket.WebSocketException) as e:
             print(f'Failed to connect to CDP: {e}')
             self.close()
             sys.exit(1)
@@ -196,7 +196,7 @@ class CDPDriver:
     def close(self):
         """Close WebSocket and terminate the browser process."""
         if self.ws:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, websocket.WebSocketException):
                 self.ws.close()
             self.ws = None
 
@@ -205,7 +205,7 @@ class CDPDriver:
                 self._terminate_browser()
                 self.process.wait(timeout=5)
                 print(f'Closing browser [{self.process.pid}]')
-            except Exception:
+            except (OSError, subprocess.SubprocessError):
                 self.process.kill()
             self.process = None
 
