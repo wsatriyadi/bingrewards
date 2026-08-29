@@ -40,6 +40,14 @@
   .acc input { flex: 1; min-width: 90px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 12px; }
   .acc button { padding: 4px 10px; font-size: 11px; background: transparent; color: var(--err); border-color: var(--err); }
   #add-acc-btn { background: transparent; border-color: var(--accent); color: var(--accent); }
+  button.ghost { background: transparent; border-color: var(--border); color: var(--text); width: 100%; margin-top: 8px; }
+  .pts .acc-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .pts .acc-row:last-child { border-bottom: none; }
+  .pts .name { font-weight: 600; }
+  .pts .pts-val { color: var(--ok); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pts .lifetime { font-size: 11px; color: var(--muted); }
+  .pts .progress { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .pts .error { color: var(--err); font-size: 12px; text-align: right; }
   .hint { font-size: 11px; color: var(--muted); margin-top: 12px; }
 </style>
 </head>
@@ -72,15 +80,17 @@
       </section>
     </div>
     <section class="card">
-      <h2>Log</h2>
-      <div id="log">Menunggu run pertama…</div>
-      <p class="hint">Log real-time via polling <code>/api/log</code>. Default delay antar pencarian 6 detik.</p>
+      <h2>Points Dashboard</h2>
+      <div id="points" class="pts"><p class="hint">Belum ada data. Jalankan run atau klik Refresh.</p></div>
+      <button id="btn-points" class="ghost">Refresh Points</button>
+      <p class="hint">Points dari <code>bing.com/rewardsapp</code> via sesi login tiap akun. Refresh otomatis setelah run selesai.</p>
     </section>
   </div>
 </main>
 <script>
 const $ = (id) => document.getElementById(id)
 let logCursor = 0
+let lastStatus = 'idle'
 let accList = []
 let running = false
 
@@ -168,10 +178,67 @@ async function poll() {
     }
     running = st.status === 'running'
     updateButtons()
+    if (lastStatus === 'running' && st.status !== 'running') loadPoints()
+    lastStatus = st.status
   } catch (e) { /* server offline; retry next tick */ }
 }
 
+async function loadPoints() {
+  try {
+    const res = await fetch('/api/points')
+    if (!res.ok) {
+      $('points').innerHTML = `<p class="error">${esc(await res.text())}</p>`
+      return
+    }
+    const data = await res.json()
+    renderPoints(data.accounts || [])
+  } catch (e) {
+    $('points').innerHTML = `<p class="error">Gagal memuat: ${esc(e)}</p>`
+  }
+}
+
+async function refreshPoints() {
+  const btn = $('btn-points')
+  btn.disabled = true; btn.textContent = 'Memuat…'
+  try {
+    const res = await fetch('/api/points/refresh', { method: 'POST' })
+    if (!res.ok) {
+      $('points').innerHTML = `<p class="error">${esc(await res.text())}</p>`
+      return
+    }
+    const data = await res.json()
+    renderPoints(data.accounts || [])
+  } catch (e) {
+    $('points').innerHTML = `<p class="error">Gagal memuat: ${esc(e)}</p>`
+  } finally { btn.disabled = false; btn.textContent = 'Refresh Points' }
+}
+
+function renderPoints(list) {
+  const el = $('points')
+  if (!list.length) {
+    el.innerHTML = '<p class="hint">Belum ada data. Jalankan run atau klik Refresh.</p>'
+    return
+  }
+  el.innerHTML = list.map(acc => {
+    if (acc.error) {
+      return `<div class="acc-row"><span class="name">${esc(acc.name)}</span><span class="error">${esc(acc.error)}</span></div>`
+    }
+    return `<div class="acc-row">
+      <div><span class="name">${esc(acc.name)}</span>
+        <div class="progress">PC ${fmtProg(acc.pc_search)} · Mobile ${fmtProg(acc.mobile_search)}</div>
+        <div class="lifetime">Lifetime: ${fmtInt(acc.lifetime_points)} pts</div></div>
+      <div><span class="pts-val">${fmtInt(acc.available_points)}</span> pts</div>
+    </div>`
+  }).join('')
+}
+
+function fmtProg(p) { return p ? `${p.current}/${p.target}${p.complete ? ' ✓' : ''}` : '-' }
+function fmtInt(v) { return v == null ? '?' : v.toLocaleString() }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }
+
+$('btn-points').onclick = refreshPoints
 loadConfig()
+loadPoints()
 setInterval(poll, 1000)
 </script>
 </body>

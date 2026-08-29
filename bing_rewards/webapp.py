@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from bing_rewards import app as app_cdp
 from bing_rewards import options as app_options
+from bing_rewards import rewards
 
 
 class State:
@@ -28,6 +29,8 @@ class State:
         self.run_thread: threading.Thread | None = None
         self.stop_flag = threading.Event()
         self.started_at: float | None = None
+        self.points_cache: list[dict] = []  # Cached points from last fetch
+        self.points_lock = threading.Lock()
 
     LOG_MAX_LINES = 500
 
@@ -60,11 +63,30 @@ def get_config():
     return dataclasses.asdict(cfg)
 
 
+@app.get('/api/points')
+def get_points():
+    """Return cached points (last fetch, by run epilogue or refresh endpoint)."""
+    with STATE.points_lock:
+        return {'accounts': [dict(p) for p in STATE.points_cache]}
+
+
+@app.post('/api/points/refresh')
+def refresh_points():
+    """Fetch fresh points for all accounts. Sync; 409 while run active."""
+    if STATE.status == 'running':
+        raise HTTPException(409, 'Cannot fetch points while run is active')
+    config = app_options.read_config()
+    accounts = config.get_accounts()
+    results = rewards.fetch_all_points(accounts, config)
+    with STATE.points_lock:
+        STATE.points_cache = results
+    return {'accounts': results}
+
+
 @app.get('/api/status')
 def get_status():
-    """Return current run state."""
+    """Return the current run status."""
     return {
-        'status': STATE.status,
         'accounts_run': STATE.accounts_run,
         'log_tail': STATE.log_lines[-20:],
         'log_len': len(STATE.log_lines),
@@ -134,6 +156,17 @@ def start_run(req: RunRequest):
                     dryrun=req.dryrun,
                 )
                 STATE.log(f'Account {account.name} complete')
+            STATE.status = 'idle'
+            STATE.log('Run complete')
+            if not req.dryrun:
+                STATE.log('Refreshing points dashboard…')
+                try:
+                    pts_results = rewards.fetch_all_points(accounts, config, log=STATE.log)
+                    with STATE.points_lock:
+                        STATE.points_cache = pts_results
+                    STATE.log('Points refreshed')
+                except Exception as e:  # noqa: BLE001 -- points fetch boundary
+                    STATE.log(f'Points refresh failed: {e}')
             STATE.status = 'idle'
             STATE.log('Run complete')
         except Exception as e:  # noqa: BLE001 -- top-level run boundary: any failure must mark run as error

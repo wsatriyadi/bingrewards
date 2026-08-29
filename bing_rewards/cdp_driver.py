@@ -156,6 +156,28 @@ class CDPDriver:
         """Navigate the page to a URL."""
         self.send_command('Page.navigate', {'url': url})
 
+    def evaluate(self, expression: str, await_promise: bool = False) -> object:
+        """Evaluate a JavaScript expression in the page and return its value.
+
+        Args:
+            expression: JS expression to evaluate in the page context.
+            await_promise: Wait for the returned promise to settle before returning.
+
+        Returns:
+            The JSON-decoded value of the expression, or None if undefined.
+        """
+        result = self.send_command(
+            'Runtime.evaluate',
+            {
+                'expression': expression,
+                'returnByValue': True,
+                'awaitPromise': await_promise,
+            },
+        )
+        if 'exceptionDetails' in result:
+            raise RuntimeError(f'JS evaluation failed: {result["exceptionDetails"]}')
+        return result.get('result', {}).get('value')
+
     def search(
         self,
         count: int,
