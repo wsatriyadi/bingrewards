@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.3.0](https://github.com/wsatriyadi/bingrewards/compare/v3.2.3...v3.3.0) (2026-09-19)
+
+
+### Features
+
+* add login-helper.sh for interactive MS account login via noVNC ([1acffe4](https://github.com/wsatriyadi/bingrewards/commit/1acffe49d6d39abd525ba3d7ac79fea6a53304f5))
+* add Microsoft Rewards points dashboard ([8d55a41](https://github.com/wsatriyadi/bingrewards/commit/8d55a411a10b5a706b862c9c8a22aa10072a3160))
+
+
+### Documentation
+
+* document points dashboard and headless login helper ([acf8161](https://github.com/wsatriyadi/bingrewards/commit/acf816180ad60809cac9a7dc78787a31ca14723e))
+
+
+### Build System
+
+* **deps-dev:** bump ruff from 0.16.4 to 0.16.8 ([ac49d88](https://github.com/wsatriyadi/bingrewards/commit/ac49d8842775bffb6b670300e488bc62e66f8db0))
+* **deps-dev:** bump ruff from 0.16.4 to 0.16.8 ([1327feb](https://github.com/wsatriyadi/bingrewards/commit/1327feba4f9f02a110f96e59d11c1491c424b90e))
+* **deps:** bump websocket-client from 1.9.0 to 1.9.2 ([e4d1c81](https://github.com/wsatriyadi/bingrewards/commit/e4d1c81078f595a7c26cae252ab69dfb9c561609))
+* **deps:** bump websocket-client from 1.9.0 to 1.9.2 ([07e9e03](https://github.com/wsatriyadi/bingrewards/commit/07e9e03887df89aabe47faf053de0f0e82fc4669))
+
 ## [3.2.3](https://github.com/wsatriyadi/bingrewards/compare/v3.2.2...v3.2.3) (2026-08-29)
 
 
